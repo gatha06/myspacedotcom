@@ -42,7 +42,12 @@
     <!-- Gallery -->
     <section id="gallery">
       <h2>Gallery</h2>
-      <p>Photos will go here.</p>
+      <label class="btn file-btn">
+        Add photos
+        <input type="file" id="photo-input" accept="image/*" multiple>
+      </label>
+      <p id="gallery-error" class="form-error" role="alert"></p>
+      <ul id="gallery-grid" class="gallery-grid"></ul>
     </section>
 
     <!-- Socials -->
@@ -50,12 +55,12 @@
       <h2>Socials</h2>
       <form id="social-form" class="social-form">
         <select id="social-platform" aria-label="Platform">
-          <option value="GitHub"> GitHub</option>
-          <option value="LinkedIn">LinkedIn</option>
-          <option value="Instagram">Instagram</option>
-          <option value="X">X</option>
-          <option value="YouTube">YouTube</option>
-          <option value="Website">Website</option>
+          <option value="GitHub">🐙 GitHub</option>
+          <option value="LinkedIn">💼 LinkedIn</option>
+          <option value="Instagram">📸 Instagram</option>
+          <option value="X">🐦 X</option>
+          <option value="YouTube">▶️ YouTube</option>
+          <option value="Website">🌐 Website</option>
         </select>
         <input type="text" id="social-url" placeholder="Paste your link" required>
         <button type="submit" class="btn">Add link</button>
@@ -68,6 +73,12 @@
   <footer>
     <p>© myspacedotcom</p>
   </footer>
+
+  <!-- Photo viewer -->
+  <dialog id="lightbox" class="lightbox" aria-label="Photo viewer">
+    <img id="lightbox-img" alt="Enlarged photo">
+    <button type="button" id="lightbox-close" class="lightbox-close" aria-label="Close photo">✕</button>
+  </dialog>
 
   <script src="script.js"></script>
 </body>
