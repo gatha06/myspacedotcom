@@ -21,11 +21,14 @@ function loadData(key, fallback) {
   }
 }
 
+// Returns true if saved, false if it failed (for example, storage is full)
 function saveData(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch (err) {
     console.error(`Could not save ${key}:`, err);
+    return false;
   }
 }
 
@@ -197,6 +200,135 @@ renderNotes();
 
 
 /* =========================================================
+   GALLERY
+   ========================================================= */
+
+const photoInput = document.getElementById("photo-input");
+const galleryError = document.getElementById("gallery-error");
+const galleryGrid = document.getElementById("gallery-grid");
+const lightbox = document.getElementById("lightbox");
+const lightboxImg = document.getElementById("lightbox-img");
+const lightboxClose = document.getElementById("lightbox-close");
+
+let photos = loadData("photos", []);
+
+// Shrink a photo before saving. Browser storage is small (about 5MB),
+// so we scale each image down and save it as a compressed JPEG.
+function resizeImage(file, maxSize = 900) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error("Could not read the file."));
+    reader.onload = () => {
+      const img = new Image();
+
+      img.onerror = () => reject(new Error("That file isn't a readable image."));
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+
+      img.src = reader.result;
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function openLightbox(photo, index) {
+  lightboxImg.src = photo.src;
+  lightboxImg.alt = `Gallery photo ${index + 1}`;
+  lightbox.showModal(); // Esc closes it automatically
+}
+
+function renderGallery() {
+  galleryGrid.innerHTML = "";
+
+  if (photos.length === 0) {
+    galleryGrid.appendChild(el("li", "empty", "No photos yet. Add your first one above."));
+    return;
+  }
+
+  photos.forEach((photo, index) => {
+    const li = el("li", "photo");
+
+    const openBtn = el("button", "open-btn");
+    openBtn.type = "button";
+    openBtn.setAttribute("aria-label", `View photo ${index + 1}`);
+
+    const img = el("img");
+    img.src = photo.src;
+    img.alt = `Gallery photo ${index + 1}`;
+    openBtn.appendChild(img);
+    openBtn.addEventListener("click", () => openLightbox(photo, index));
+
+    const deleteBtn = el("button", "delete-btn", "✕");
+    deleteBtn.type = "button";
+    deleteBtn.setAttribute("aria-label", `Delete photo ${index + 1}`);
+    deleteBtn.addEventListener("click", () => {
+      if (!confirm("Delete this photo?")) return;
+      photos = photos.filter((p) => p.id !== photo.id);
+      saveData("photos", photos);
+      renderGallery();
+    });
+
+    li.append(openBtn, deleteBtn);
+    galleryGrid.appendChild(li);
+  });
+}
+
+photoInput.addEventListener("change", async () => {
+  galleryError.textContent = "";
+  const files = Array.from(photoInput.files);
+  let skipped = 0;
+
+  for (const file of files) {
+    if (!file.type.startsWith("image/")) {
+      skipped++;
+      continue;
+    }
+
+    try {
+      const src = await resizeImage(file);
+      const photo = { id: Date.now() + Math.random(), src: src };
+      photos.unshift(photo);
+
+      // If storage is full, undo this photo and stop
+      if (!saveData("photos", photos)) {
+        photos.shift();
+        galleryError.textContent = "Storage is full. Delete a few photos and try again.";
+        break;
+      }
+    } catch (err) {
+      console.error(err);
+      skipped++;
+    }
+  }
+
+  if (skipped > 0 && !galleryError.textContent) {
+    galleryError.textContent = `${skipped} file(s) skipped because they weren't valid images.`;
+  }
+
+  photoInput.value = ""; // lets you pick the same file again later
+  renderGallery();
+});
+
+// Close the viewer with the ✕ button or by clicking the dark background
+lightboxClose.addEventListener("click", () => lightbox.close());
+lightbox.addEventListener("click", (event) => {
+  if (event.target === lightbox) lightbox.close();
+});
+
+renderGallery();
+
+
+/* =========================================================
    SOCIALS
    ========================================================= */
 
@@ -205,7 +337,6 @@ const platformSelect = document.getElementById("social-platform");
 const urlInput = document.getElementById("social-url");
 const socialError = document.getElementById("social-error");
 const socialList = document.getElementById("social-list");
-
 
 let socials = loadData("socials", []);
 
@@ -241,7 +372,7 @@ function renderSocials() {
   socials.forEach((item) => {
     const li = el("li", "social-chip");
 
-    const link = el("a", "", `${platformIcons[item.platform] || "🔗"} ${item.platform}`);
+    const link = el("a", "", item.platform);
     link.href = item.url;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
