@@ -206,14 +206,6 @@ const urlInput = document.getElementById("social-url");
 const socialError = document.getElementById("social-error");
 const socialList = document.getElementById("social-list");
 
-const platformIcons = {
-  GitHub: "🐙",
-  LinkedIn: "💼",
-  Instagram: "📸",
-  X: "🐦",
-  YouTube: "▶️",
-  Website: "🌐",
-};
 
 let socials = loadData("socials", []);
 
