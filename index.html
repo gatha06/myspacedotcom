@@ -31,7 +31,12 @@
     <!-- Notes -->
     <section id="notes">
       <h2>Notes</h2>
-      <p>Notes will go here.</p>
+      <form id="note-form" class="note-form">
+        <input type="text" id="note-title" placeholder="Title (optional)" maxlength="60">
+        <textarea id="note-text" placeholder="Write a note..." rows="3" required></textarea>
+        <button type="submit" class="btn">Add note</button>
+      </form>
+      <ul id="notes-list" class="notes-list"></ul>
     </section>
 
     <!-- Gallery -->
