@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>myspacedotcom</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <h1>myspacedotcom</h1>
+    <nav>
+      <a href="#about">About</a>
+      <a href="#notes">Notes</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#socials">Socials</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Profile card -->
+    <section class="profile-card" id="about">
+      <img src="" alt="Profile picture" class="avatar">
+      <h2>Your Name</h2>
+      <p class="bio">A short bio about you goes here.</p>
+      <p class="mood">Mood today: <span id="current-mood">😊 happy</span></p>
+      <div id="mood-picker" class="mood-picker" aria-label="Pick your mood"></div>
+    </section>
+
+    <!-- Notes -->
+    <section id="notes">
+      <h2>Notes</h2>
+      <form id="note-form" class="note-form">
+        <input type="text" id="note-title" placeholder="Title (optional)" maxlength="60">
+        <textarea id="note-text" placeholder="Write a note..." rows="3" required></textarea>
+        <button type="submit" class="btn">Add note</button>
+      </form>
+      <ul id="notes-list" class="notes-list"></ul>
+    </section>
+
+    <!-- Gallery -->
+    <section id="gallery">
+      <h2>Gallery</h2>
+      <p>Photos will go here.</p>
+    </section>
+
+    <!-- Socials -->
+    <section id="socials">
+      <h2>Socials</h2>
+      <form id="social-form" class="social-form">
+        <select id="social-platform" aria-label="Platform">
+          <option value="GitHub">🐙 GitHub</option>
+          <option value="LinkedIn">💼 LinkedIn</option>
+          <option value="Instagram">📸 Instagram</option>
+          <option value="X">🐦 X</option>
+          <option value="YouTube">▶️ YouTube</option>
+          <option value="Website">🌐 Website</option>
+        </select>
+        <input type="text" id="social-url" placeholder="Paste your link" required>
+        <button type="submit" class="btn">Add link</button>
+      </form>
+      <p id="social-error" class="form-error" role="alert"></p>
+      <ul id="social-list" class="social-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>© myspacedotcom</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
