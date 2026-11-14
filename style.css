@@ -191,6 +191,13 @@ textarea {
   resize: vertical;
 }
 
+.form-error {
+  color: #b91c1c;
+  min-height: 1.4em;
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
 /* ---------- Notes ---------- */
 .note-form {
   display: flex;
@@ -242,6 +249,115 @@ textarea {
   opacity: 0.7;
 }
 
+/* ---------- Gallery ---------- */
+.file-btn {
+  display: inline-block;
+  position: relative;
+}
+
+/* Hide the ugly default file input but keep it keyboard-accessible */
+.file-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+
+.file-btn:focus-within {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.gallery-grid {
+  list-style: none;
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.photo {
+  position: relative;
+}
+
+.photo .open-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--accent-soft);
+  cursor: zoom-in;
+}
+
+.photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.photo .delete-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+}
+
+.photo .delete-btn:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.gallery-grid .empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 16px;
+  opacity: 0.7;
+}
+
+/* ---------- Photo viewer ---------- */
+.lightbox {
+  border: none;
+  background: transparent;
+  max-width: 95vw;
+  max-height: 95vh;
+  margin: auto;
+  overflow: visible;
+}
+
+.lightbox::backdrop {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.lightbox img {
+  display: block;
+  max-width: 90vw;
+  max-height: 85vh;
+  border-radius: 12px;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
 /* ---------- Socials ---------- */
 .social-form {
   display: flex;
@@ -257,13 +373,6 @@ textarea {
 .social-form input {
   flex: 1 1 200px;
   width: auto;
-}
-
-.form-error {
-  color: #b91c1c;
-  min-height: 1.4em;
-  margin-top: 8px;
-  font-size: 0.9rem;
 }
 
 .social-list {
