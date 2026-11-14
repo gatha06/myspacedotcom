@@ -1,8 +1,8 @@
 /* =========================================================
-   SHARED HELPERS
+   HELPERS
    ========================================================= */
+const $ = (id) => document.getElementById(id);
 
-// Small helper to create an element with a class and text
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -10,7 +10,7 @@ function el(tag, className, text) {
   return node;
 }
 
-// Read and write JSON in localStorage safely
+// Browser storage (used for photos until we move them to the server)
 function loadData(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
@@ -21,7 +21,6 @@ function loadData(key, fallback) {
   }
 }
 
-// Returns true if saved, false if it failed (for example, storage is full)
 function saveData(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -31,65 +30,6 @@ function saveData(key, value) {
     return false;
   }
 }
-
-
-/* =========================================================
-   MOOD PICKER
-   ========================================================= */
-
-const moods = [
-  { emoji: "😊", label: "happy",  accent: "#f59e0b", soft: "#fef3c7" },
-  { emoji: "😴", label: "sleepy", accent: "#6366f1", soft: "#e0e7ff" },
-  { emoji: "🔥", label: "hyped",  accent: "#ef4444", soft: "#fee2e2" },
-  { emoji: "🌧️", label: "moody",  accent: "#0ea5e9", soft: "#e0f2fe" },
-  { emoji: "🌿", label: "calm",   accent: "#22c55e", soft: "#dcfce7" },
-];
-
-const moodDisplay = document.getElementById("current-mood");
-const picker = document.getElementById("mood-picker");
-
-function setMood(mood) {
-  moodDisplay.textContent = `${mood.emoji} ${mood.label}`;
-
-  const root = document.documentElement;
-  root.style.setProperty("--accent", mood.accent);
-  root.style.setProperty("--accent-soft", mood.soft);
-
-  picker.querySelectorAll("button").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.label === mood.label);
-  });
-
-  saveData("mood", mood.label);
-}
-
-moods.forEach((mood) => {
-  const btn = document.createElement("button");
-  btn.textContent = mood.emoji;
-  btn.title = mood.label;
-  btn.dataset.label = mood.label;
-  btn.addEventListener("click", () => setMood(mood));
-  picker.appendChild(btn);
-});
-
-const savedMood = loadData("mood", null);
-setMood(moods.find((m) => m.label === savedMood) || moods[0]);
-
-
-/* =========================================================
-   NOTES (saved in the database through the Flask API)
-   ========================================================= */
-
-const noteForm = document.getElementById("note-form");
-const titleInput = document.getElementById("note-title");
-const textInput = document.getElementById("note-text");
-const notesList = document.getElementById("notes-list");
-
-// A small message area under the form for errors
-const notesError = el("p", "form-error");
-notesError.setAttribute("role", "alert");
-noteForm.after(notesError);
-
-let notes = [];
 
 // Talk to the Flask server
 async function api(path, options = {}) {
@@ -110,19 +50,46 @@ function formatDate(timestamp) {
   });
 }
 
-async function loadNotes() {
+// The database stores UTC times like "2026-11-15 10:30:00"
+function dbDate(text) {
+  return formatDate(text.replace(" ", "T") + "Z");
+}
+
+async function removeBlock(id, errorEl) {
+  try {
+    await api(`/api/blocks/${id}`, { method: "DELETE" });
+    return true;
+  } catch (err) {
+    errorEl.textContent = err.message;
+    return false;
+  }
+}
+
+/* =========================================================
+   NOTES AND LINKS (both saved in the database)
+   ========================================================= */
+const notesList = $("notes-list");
+const notesError = $("notes-error");
+const linkGrid = $("link-grid");
+const linksError = $("links-error");
+
+let notes = [];
+let links = [];
+
+async function loadBlocks() {
   try {
     const blocks = await api("/api/blocks");
     notes = blocks.filter((b) => b.type === "note");
-    notesError.textContent = "";
+    links = blocks.filter((b) => b.type === "link");
   } catch (err) {
     console.error(err);
-    notes = [];
-    notesError.textContent = "Could not load notes. Is the server running?";
+    notesError.textContent = "Could not load from the server. Is it running?";
   }
   renderNotes();
+  renderLinks();
 }
 
+// ----- Notes -----
 function renderNotes() {
   notesList.innerHTML = "";
 
@@ -136,144 +103,193 @@ function renderNotes() {
 
     if (note.title) li.appendChild(el("h3", "", note.title));
     li.appendChild(el("p", "", note.content));
-    li.appendChild(el("time", "", formatDate(note.created_at.replace(" ", "T") + "Z")));
+    li.appendChild(el("time", "", dbDate(note.created_at)));
 
-    const actions = el("div", "note-actions");
-
-    const deleteBtn = el("button", "btn ghost small", "Delete");
-    deleteBtn.type = "button";
-    deleteBtn.addEventListener("click", async () => {
+    const rm = el("button", "rm", "Remove");
+    rm.type = "button";
+    rm.addEventListener("click", async () => {
       if (!confirm("Delete this note?")) return;
-      try {
-        await api(`/api/blocks/${note.id}`, { method: "DELETE" });
+      if (await removeBlock(note.id, notesError)) {
         notes = notes.filter((n) => n.id !== note.id);
         renderNotes();
-      } catch (err) {
-        notesError.textContent = err.message;
       }
     });
 
-    actions.appendChild(deleteBtn);
-    li.appendChild(actions);
+    li.appendChild(rm);
     notesList.appendChild(li);
   });
 }
 
-noteForm.addEventListener("submit", async (event) => {
+$("note-form").addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const content = textInput.value.trim();
+  const content = $("note-text").value.trim();
   if (!content) return;
 
   try {
     const block = await api("/api/blocks", {
       method: "POST",
-      body: JSON.stringify({
-        type: "note",
-        title: titleInput.value.trim(),
-        content: content,
-      }),
+      body: JSON.stringify({ type: "note", title: $("note-title").value.trim(), content }),
     });
     notesError.textContent = "";
     notes.unshift(block);
     renderNotes();
-    noteForm.reset();
-    titleInput.focus();
+    event.target.reset();
+    $("note-title").focus();
   } catch (err) {
     notesError.textContent = err.message;
   }
 });
 
-loadNotes();
+// ----- Links -----
+// Only http and https links are allowed (this blocks things like "javascript:")
+function cleanUrl(input) {
+  let value = input.trim();
+  if (!value) return null;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = "https://" + value;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    if (!url.hostname.includes(".")) return null;
+    return url.href;
+  } catch (err) {
+    return null;
+  }
+}
 
+function renderLinks() {
+  linkGrid.innerHTML = "";
+
+  if (links.length === 0) {
+    linkGrid.appendChild(el("li", "empty", "No links yet. Add your first one above."));
+    return;
+  }
+
+  links.forEach((item) => {
+    const li = el("li", "link-item");
+
+    let host = item.url;
+    try { host = new URL(item.url).hostname.replace(/^www\./, ""); } catch (err) { /* keep full url */ }
+
+    const a = el("a", "link");
+    a.href = item.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.append(el("strong", "", item.title || "Link"), el("small", "", host));
+
+    const rm = el("button", "rm", "Remove");
+    rm.type = "button";
+    rm.addEventListener("click", async () => {
+      if (!confirm("Remove this link?")) return;
+      if (await removeBlock(item.id, linksError)) {
+        links = links.filter((l) => l.id !== item.id);
+        renderLinks();
+      }
+    });
+
+    li.append(a, rm);
+    linkGrid.appendChild(li);
+  });
+}
+
+$("link-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const url = cleanUrl($("link-url").value);
+  if (!url) {
+    linksError.textContent = "That doesn't look like a valid link. Try something like github.com/yourname.";
+    return;
+  }
+
+  try {
+    const block = await api("/api/blocks", {
+      method: "POST",
+      body: JSON.stringify({ type: "link", title: $("link-platform").value, url }),
+    });
+    linksError.textContent = "";
+    links.unshift(block);
+    renderLinks();
+    event.target.reset();
+    $("link-url").focus();
+  } catch (err) {
+    linksError.textContent = err.message;
+  }
+});
+
+loadBlocks();
 
 /* =========================================================
-   GALLERY (still saved in the browser for now)
+   PHOTO DUMP (still saved in the browser for now)
    ========================================================= */
-
-const photoInput = document.getElementById("photo-input");
-const galleryError = document.getElementById("gallery-error");
-const galleryGrid = document.getElementById("gallery-grid");
-const lightbox = document.getElementById("lightbox");
-const lightboxImg = document.getElementById("lightbox-img");
-const lightboxClose = document.getElementById("lightbox-close");
+const photoGrid = $("photo-grid");
+const photosError = $("photos-error");
+const lightbox = $("lightbox");
 
 let photos = loadData("photos", []);
 
-// Shrink a photo before saving. Browser storage is small (about 5MB),
-// so we scale each image down and save it as a compressed JPEG.
+// Shrink photos before saving: browser storage is only about 5MB
 function resizeImage(file, maxSize = 900) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-
     reader.onerror = () => reject(new Error("Could not read the file."));
     reader.onload = () => {
       const img = new Image();
-
       img.onerror = () => reject(new Error("That file isn't a readable image."));
       img.onload = () => {
         const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
-
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", 0.8));
       };
-
       img.src = reader.result;
     };
-
     reader.readAsDataURL(file);
   });
 }
 
-function openLightbox(photo, index) {
-  lightboxImg.src = photo.src;
-  lightboxImg.alt = `Gallery photo ${index + 1}`;
-  lightbox.showModal(); // Esc closes it automatically
-}
-
-function renderGallery() {
-  galleryGrid.innerHTML = "";
+function renderPhotos() {
+  photoGrid.innerHTML = "";
 
   if (photos.length === 0) {
-    galleryGrid.appendChild(el("li", "empty", "No photos yet. Add your first one above."));
+    photoGrid.appendChild(el("li", "empty", "Nothing here yet. Add your first photos above."));
     return;
   }
 
   photos.forEach((photo, index) => {
-    const li = el("li", "photo");
+    const li = el("li", "shot");
 
-    const openBtn = el("button", "open-btn");
-    openBtn.type = "button";
-    openBtn.setAttribute("aria-label", `View photo ${index + 1}`);
-
+    const open = el("button", "open");
+    open.type = "button";
+    open.setAttribute("aria-label", `View photo ${index + 1}`);
     const img = el("img");
     img.src = photo.src;
-    img.alt = `Gallery photo ${index + 1}`;
-    openBtn.appendChild(img);
-    openBtn.addEventListener("click", () => openLightbox(photo, index));
-
-    const deleteBtn = el("button", "delete-btn", "✕");
-    deleteBtn.type = "button";
-    deleteBtn.setAttribute("aria-label", `Delete photo ${index + 1}`);
-    deleteBtn.addEventListener("click", () => {
-      if (!confirm("Delete this photo?")) return;
-      photos = photos.filter((p) => p.id !== photo.id);
-      saveData("photos", photos);
-      renderGallery();
+    img.alt = `Photo ${index + 1}`;
+    open.appendChild(img);
+    open.addEventListener("click", () => {
+      $("lightbox-img").src = photo.src;
+      lightbox.showModal(); // Esc closes it automatically
     });
 
-    li.append(openBtn, deleteBtn);
-    galleryGrid.appendChild(li);
+    const rm = el("button", "rm", "Remove");
+    rm.type = "button";
+    rm.setAttribute("aria-label", `Remove photo ${index + 1}`);
+    rm.addEventListener("click", () => {
+      if (!confirm("Remove this photo?")) return;
+      photos = photos.filter((p) => p.id !== photo.id);
+      saveData("photos", photos);
+      renderPhotos();
+    });
+
+    li.append(open, rm);
+    photoGrid.appendChild(li);
   });
 }
 
-photoInput.addEventListener("change", async () => {
-  galleryError.textContent = "";
-  const files = Array.from(photoInput.files);
+$("photo-input").addEventListener("change", async (event) => {
+  photosError.textContent = "";
+  const files = Array.from(event.target.files);
   let skipped = 0;
 
   for (const file of files) {
@@ -281,16 +297,11 @@ photoInput.addEventListener("change", async () => {
       skipped++;
       continue;
     }
-
     try {
-      const src = await resizeImage(file);
-      const photo = { id: Date.now() + Math.random(), src: src };
-      photos.unshift(photo);
-
-      // If storage is full, undo this photo and stop
+      photos.unshift({ id: Date.now() + Math.random(), src: await resizeImage(file) });
       if (!saveData("photos", photos)) {
-        photos.shift();
-        galleryError.textContent = "Storage is full. Delete a few photos and try again.";
+        photos.shift(); // storage is full, undo this one
+        photosError.textContent = "Storage is full. Remove a few photos and try again.";
         break;
       }
     } catch (err) {
@@ -299,107 +310,17 @@ photoInput.addEventListener("change", async () => {
     }
   }
 
-  if (skipped > 0 && !galleryError.textContent) {
-    galleryError.textContent = `${skipped} file(s) skipped because they weren't valid images.`;
+  if (skipped > 0 && !photosError.textContent) {
+    photosError.textContent = `${skipped} file(s) skipped because they weren't valid images.`;
   }
 
-  photoInput.value = ""; // lets you pick the same file again later
-  renderGallery();
+  event.target.value = "";
+  renderPhotos();
 });
 
-// Close the viewer with the ✕ button or by clicking the dark background
-lightboxClose.addEventListener("click", () => lightbox.close());
+$("lightbox-close").addEventListener("click", () => lightbox.close());
 lightbox.addEventListener("click", (event) => {
   if (event.target === lightbox) lightbox.close();
 });
 
-renderGallery();
-
-
-/* =========================================================
-   SOCIALS (still saved in the browser for now)
-   ========================================================= */
-
-const socialForm = document.getElementById("social-form");
-const platformSelect = document.getElementById("social-platform");
-const urlInput = document.getElementById("social-url");
-const socialError = document.getElementById("social-error");
-const socialList = document.getElementById("social-list");
-
-
-let socials = loadData("socials", []);
-
-// Turn what the user typed into a safe URL, or return null if it's not valid.
-// Only http and https links are allowed (this blocks things like "javascript:").
-function cleanUrl(input) {
-  let value = input.trim();
-  if (!value) return null;
-
-  // Allow "github.com/me" by adding https:// when no scheme is given
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) {
-    value = "https://" + value;
-  }
-
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    if (!url.hostname.includes(".")) return null; // needs a real domain
-    return url.href;
-  } catch (err) {
-    return null;
-  }
-}
-
-function renderSocials() {
-  socialList.innerHTML = "";
-
-  if (socials.length === 0) {
-    socialList.appendChild(el("li", "empty", "No links yet. Add your first one above."));
-    return;
-  }
-
-  socials.forEach((item) => {
-    const li = el("li", "social-chip");
-
-    const link = el("a", "", `${platformIcons[item.platform] || "🔗"} ${item.platform}`);
-    link.href = item.url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-
-    const removeBtn = el("button", "", "✕");
-    removeBtn.type = "button";
-    removeBtn.setAttribute("aria-label", `Remove ${item.platform} link`);
-    removeBtn.addEventListener("click", () => {
-      socials = socials.filter((s) => s.id !== item.id);
-      saveData("socials", socials);
-      renderSocials();
-    });
-
-    li.append(link, removeBtn);
-    socialList.appendChild(li);
-  });
-}
-
-socialForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-
-  const url = cleanUrl(urlInput.value);
-  if (!url) {
-    socialError.textContent = "That doesn't look like a valid link. Try something like github.com/yourname.";
-    return;
-  }
-
-  socialError.textContent = "";
-  socials.push({
-    id: Date.now(),
-    platform: platformSelect.value,
-    url: url,
-  });
-
-  saveData("socials", socials);
-  renderSocials();
-  socialForm.reset();
-  urlInput.focus();
-});
-
-renderSocials();
+renderPhotos();
