@@ -1,8 +1,5 @@
-/* =========================================================
-   SHARED HELPERS
-   ========================================================= */
+const $ = (id) => document.getElementById(id);
 
-// Small helper to create an element with a class and text
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -10,8 +7,7 @@ function el(tag, className, text) {
   return node;
 }
 
-// Read and write JSON in localStorage safely
-function loadData(key, fallback) {
+function load(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
@@ -22,7 +18,7 @@ function loadData(key, fallback) {
 }
 
 // Returns true if saved, false if it failed (for example, storage is full)
-function saveData(key, value) {
+function save(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
     return true;
@@ -32,385 +28,281 @@ function saveData(key, value) {
   }
 }
 
-
 /* =========================================================
-   MOOD PICKER
+   MOOD (recolors the whole page)
    ========================================================= */
-
 const moods = [
-  { emoji: "😊", label: "happy",  accent: "#f59e0b", soft: "#fef3c7" },
-  { emoji: "😴", label: "sleepy", accent: "#6366f1", soft: "#e0e7ff" },
-  { emoji: "🔥", label: "hyped",  accent: "#ef4444", soft: "#fee2e2" },
-  { emoji: "🌧️", label: "moody",  accent: "#0ea5e9", soft: "#e0f2fe" },
-  { emoji: "🌿", label: "calm",   accent: "#22c55e", soft: "#dcfce7" },
+  { emoji: "🔥", label: "hyped",  accent: "#e60023", soft: "#fde8ec" },
+  { emoji: "😊", label: "happy",  accent: "#d97706", soft: "#fef3c7" },
+  { emoji: "😴", label: "sleepy", accent: "#4f46e5", soft: "#e0e7ff" },
+  { emoji: "🌧️", label: "moody",  accent: "#0284c7", soft: "#e0f2fe" },
+  { emoji: "🌿", label: "calm",   accent: "#16a34a", soft: "#dcfce7" },
 ];
 
-const moodDisplay = document.getElementById("current-mood");
-const picker = document.getElementById("mood-picker");
+const picker = $("mood-picker");
 
 function setMood(mood) {
-  moodDisplay.textContent = `${mood.emoji} ${mood.label}`;
-
+  $("current-mood").textContent = `${mood.emoji} ${mood.label}`;
   const root = document.documentElement;
   root.style.setProperty("--accent", mood.accent);
   root.style.setProperty("--accent-soft", mood.soft);
-
   picker.querySelectorAll("button").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.label === mood.label);
   });
-
-  saveData("mood", mood.label);
+  save("mood", mood.label);
 }
 
 moods.forEach((mood) => {
-  const btn = document.createElement("button");
-  btn.textContent = mood.emoji;
+  const btn = el("button", "", mood.emoji);
+  btn.type = "button";
   btn.title = mood.label;
   btn.dataset.label = mood.label;
   btn.addEventListener("click", () => setMood(mood));
   picker.appendChild(btn);
 });
 
-const savedMood = loadData("mood", null);
+const savedMood = load("mood", null);
 setMood(moods.find((m) => m.label === savedMood) || moods[0]);
 
+/* =========================================================
+   PROFILE (click the name or bio to edit)
+   ========================================================= */
+const nameEl = $("name");
+const bioEl = $("bio");
+const profile = load("profile", { name: "Your Name", bio: "Click here to write your bio." });
+nameEl.textContent = profile.name;
+bioEl.textContent = profile.bio;
+
+function syncAvatar() {
+  $("avatar").textContent = (nameEl.textContent.trim()[0] || "?").toUpperCase();
+}
+
+function saveProfile() {
+  save("profile", {
+    name: nameEl.textContent.trim() || "Your Name",
+    bio: bioEl.textContent.trim(),
+  });
+  syncAvatar();
+}
+
+nameEl.addEventListener("input", syncAvatar);
+[nameEl, bioEl].forEach((node) => {
+  node.addEventListener("blur", saveProfile);
+  node.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      node.blur();
+    }
+  });
+});
+syncAvatar();
 
 /* =========================================================
-   NOTES
+   PINS: photos, notes and links, all in one list
    ========================================================= */
+const platformIcons = {
+  GitHub: "🐙", LinkedIn: "💼", Instagram: "📸", X: "🐦", YouTube: "▶️", Website: "🌐",
+};
 
-const noteForm = document.getElementById("note-form");
-const titleInput = document.getElementById("note-title");
-const textInput = document.getElementById("note-text");
-const notesList = document.getElementById("notes-list");
-
-let notes = loadData("notes", []);
-let editingId = null; // id of the note currently being edited
-
-function saveNotes() {
-  saveData("notes", notes);
+// Bring over anything saved by the earlier version of the app
+function migrateOldData() {
+  const photos = load("photos", []).map((p) => ({ id: p.id, type: "photo", src: p.src, created: Math.floor(p.id) }));
+  const notes = load("notes", []).map((n) => ({ id: n.id, type: "note", title: n.title, text: n.text, created: n.created }));
+  const links = load("socials", []).map((s) => ({ id: s.id, type: "link", platform: s.platform, url: s.url, created: s.id }));
+  return [...photos, ...notes, ...links].sort((a, b) => b.created - a.created);
 }
 
-function formatDate(timestamp) {
-  return new Date(timestamp).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+let pins = load("pins", null);
+if (!pins) {
+  pins = migrateOldData();
+  save("pins", pins);
 }
 
-function renderNotes() {
-  notesList.innerHTML = "";
+let filter = "all";
+let query = "";
+const feed = $("feed");
+const viewer = $("viewer");
 
-  if (notes.length === 0) {
-    notesList.appendChild(el("li", "empty", "No notes yet. Write your first one above."));
-    return;
+function matches(pin) {
+  if (filter !== "all" && pin.type !== filter) return false;
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [pin.title, pin.text, pin.platform, pin.url].filter(Boolean).join(" ").toLowerCase().includes(q);
+}
+
+function buildPin(pin) {
+  const li = el("li", `pin pin-${pin.type}`);
+  let body;
+
+  if (pin.type === "photo") {
+    body = el("button", "pin-main");
+    body.type = "button";
+    body.setAttribute("aria-label", "View photo");
+    const img = el("img");
+    img.src = pin.src;
+    img.alt = "Photo pin";
+    img.loading = "lazy";
+    body.appendChild(img);
+    body.addEventListener("click", () => {
+      $("viewer-img").src = pin.src;
+      viewer.showModal();
+    });
+  } else if (pin.type === "note") {
+    body = el("div", `pin-main note-body tint-${Math.floor(pin.id) % 5}`);
+    if (pin.title) body.appendChild(el("h3", "", pin.title));
+    body.appendChild(el("p", "", pin.text));
+  } else {
+    body = el("a", "pin-main link-body");
+    body.href = pin.url;
+    body.target = "_blank";
+    body.rel = "noopener noreferrer";
+    let host = pin.url;
+    try { host = new URL(pin.url).hostname.replace(/^www\./, ""); } catch (err) { /* keep full url */ }
+    body.append(el("span", "icon", platformIcons[pin.platform] || "🔗"), el("strong", "", pin.platform), el("small", "", host));
   }
 
-  notes.forEach((note) => {
-    const li = el("li", "note");
-
-    if (note.id === editingId) {
-      // ----- Edit mode -----
-      const titleEdit = el("input");
-      titleEdit.type = "text";
-      titleEdit.value = note.title;
-      titleEdit.placeholder = "Title (optional)";
-      titleEdit.maxLength = 60;
-
-      const textEdit = el("textarea");
-      textEdit.rows = 3;
-      textEdit.value = note.text;
-
-      const actions = el("div", "note-actions");
-
-      const saveBtn = el("button", "btn small", "Save changes");
-      saveBtn.type = "button";
-      saveBtn.addEventListener("click", () => {
-        const newText = textEdit.value.trim();
-        if (!newText) return; // don't allow an empty note
-        note.title = titleEdit.value.trim();
-        note.text = newText;
-        editingId = null;
-        saveNotes();
-        renderNotes();
-      });
-
-      const cancelBtn = el("button", "btn ghost small", "Cancel");
-      cancelBtn.type = "button";
-      cancelBtn.addEventListener("click", () => {
-        editingId = null;
-        renderNotes();
-      });
-
-      actions.append(saveBtn, cancelBtn);
-      li.append(titleEdit, textEdit, actions);
-    } else {
-      // ----- Normal mode -----
-      if (note.title) li.appendChild(el("h3", "", note.title));
-      li.appendChild(el("p", "", note.text));
-      li.appendChild(el("time", "", formatDate(note.created)));
-
-      const actions = el("div", "note-actions");
-
-      const editBtn = el("button", "btn ghost small", "Edit");
-      editBtn.type = "button";
-      editBtn.addEventListener("click", () => {
-        editingId = note.id;
-        renderNotes();
-      });
-
-      const deleteBtn = el("button", "btn ghost small", "Delete");
-      deleteBtn.type = "button";
-      deleteBtn.addEventListener("click", () => {
-        if (!confirm("Delete this note?")) return;
-        notes = notes.filter((n) => n.id !== note.id);
-        saveNotes();
-        renderNotes();
-      });
-
-      actions.append(editBtn, deleteBtn);
-      li.appendChild(actions);
-    }
-
-    notesList.appendChild(li);
+  const del = el("button", "pin-del", "✕");
+  del.type = "button";
+  del.setAttribute("aria-label", "Delete pin");
+  del.addEventListener("click", () => {
+    if (!confirm("Delete this pin?")) return;
+    pins = pins.filter((p) => p.id !== pin.id);
+    save("pins", pins);
+    renderFeed();
   });
+
+  li.append(body, del);
+  return li;
 }
 
-noteForm.addEventListener("submit", (event) => {
-  event.preventDefault();
+function renderFeed() {
+  feed.innerHTML = "";
+  const shown = pins.filter(matches);
 
-  const text = textInput.value.trim();
-  if (!text) return;
+  if (shown.length === 0) {
+    const msg = pins.length === 0
+      ? "Nothing here yet. Click + Create to add your first pin."
+      : "No pins match. Try a different filter or search.";
+    feed.appendChild(el("li", "empty", msg));
+    return;
+  }
+  shown.forEach((pin) => feed.appendChild(buildPin(pin)));
+}
 
-  notes.unshift({
-    id: Date.now(),
-    title: titleInput.value.trim(),
-    text: text,
-    created: Date.now(),
-  });
-
-  saveNotes();
-  renderNotes();
-  noteForm.reset();
-  titleInput.focus();
+$("filters").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  filter = btn.dataset.filter;
+  document.querySelectorAll("#filters button").forEach((b) => b.setAttribute("aria-pressed", b === btn));
+  renderFeed();
 });
 
-renderNotes();
+$("search").addEventListener("input", (e) => {
+  query = e.target.value;
+  renderFeed();
+});
 
+viewer.addEventListener("click", (e) => { if (e.target === viewer) viewer.close(); });
+$("viewer-close").addEventListener("click", () => viewer.close());
 
 /* =========================================================
-   GALLERY
+   CREATE DIALOG
    ========================================================= */
+const dialog = $("create-dialog");
+const form = $("create-form");
+const errorEl = $("create-error");
 
-const photoInput = document.getElementById("photo-input");
-const galleryError = document.getElementById("gallery-error");
-const galleryGrid = document.getElementById("gallery-grid");
-const lightbox = document.getElementById("lightbox");
-const lightboxImg = document.getElementById("lightbox-img");
-const lightboxClose = document.getElementById("lightbox-close");
+function setType(type) {
+  form.querySelectorAll(".fields").forEach((f) => { f.hidden = f.dataset.type !== type; });
+  errorEl.textContent = "";
+}
 
-let photos = loadData("photos", []);
+form.querySelectorAll('input[name="type"]').forEach((radio) => {
+  radio.addEventListener("change", () => setType(radio.value));
+});
 
-// Shrink a photo before saving. Browser storage is small (about 5MB),
-// so we scale each image down and save it as a compressed JPEG.
+$("create-btn").addEventListener("click", () => {
+  form.reset();
+  setType("photo");
+  dialog.showModal();
+});
+$("create-cancel").addEventListener("click", () => dialog.close());
+
+// Shrink photos before saving: browser storage is only about 5MB
 function resizeImage(file, maxSize = 900) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-
     reader.onerror = () => reject(new Error("Could not read the file."));
     reader.onload = () => {
       const img = new Image();
-
       img.onerror = () => reject(new Error("That file isn't a readable image."));
       img.onload = () => {
         const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
-
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", 0.8));
       };
-
       img.src = reader.result;
     };
-
     reader.readAsDataURL(file);
   });
 }
 
-function openLightbox(photo, index) {
-  lightboxImg.src = photo.src;
-  lightboxImg.alt = `Gallery photo ${index + 1}`;
-  lightbox.showModal(); // Esc closes it automatically
-}
-
-function renderGallery() {
-  galleryGrid.innerHTML = "";
-
-  if (photos.length === 0) {
-    galleryGrid.appendChild(el("li", "empty", "No photos yet. Add your first one above."));
-    return;
-  }
-
-  photos.forEach((photo, index) => {
-    const li = el("li", "photo");
-
-    const openBtn = el("button", "open-btn");
-    openBtn.type = "button";
-    openBtn.setAttribute("aria-label", `View photo ${index + 1}`);
-
-    const img = el("img");
-    img.src = photo.src;
-    img.alt = `Gallery photo ${index + 1}`;
-    openBtn.appendChild(img);
-    openBtn.addEventListener("click", () => openLightbox(photo, index));
-
-    const deleteBtn = el("button", "delete-btn", "✕");
-    deleteBtn.type = "button";
-    deleteBtn.setAttribute("aria-label", `Delete photo ${index + 1}`);
-    deleteBtn.addEventListener("click", () => {
-      if (!confirm("Delete this photo?")) return;
-      photos = photos.filter((p) => p.id !== photo.id);
-      saveData("photos", photos);
-      renderGallery();
-    });
-
-    li.append(openBtn, deleteBtn);
-    galleryGrid.appendChild(li);
-  });
-}
-
-photoInput.addEventListener("change", async () => {
-  galleryError.textContent = "";
-  const files = Array.from(photoInput.files);
-  let skipped = 0;
-
-  for (const file of files) {
-    if (!file.type.startsWith("image/")) {
-      skipped++;
-      continue;
-    }
-
-    try {
-      const src = await resizeImage(file);
-      const photo = { id: Date.now() + Math.random(), src: src };
-      photos.unshift(photo);
-
-      // If storage is full, undo this photo and stop
-      if (!saveData("photos", photos)) {
-        photos.shift();
-        galleryError.textContent = "Storage is full. Delete a few photos and try again.";
-        break;
-      }
-    } catch (err) {
-      console.error(err);
-      skipped++;
-    }
-  }
-
-  if (skipped > 0 && !galleryError.textContent) {
-    galleryError.textContent = `${skipped} file(s) skipped because they weren't valid images.`;
-  }
-
-  photoInput.value = ""; // lets you pick the same file again later
-  renderGallery();
-});
-
-// Close the viewer with the ✕ button or by clicking the dark background
-lightboxClose.addEventListener("click", () => lightbox.close());
-lightbox.addEventListener("click", (event) => {
-  if (event.target === lightbox) lightbox.close();
-});
-
-renderGallery();
-
-
-/* =========================================================
-   SOCIALS
-   ========================================================= */
-
-const socialForm = document.getElementById("social-form");
-const platformSelect = document.getElementById("social-platform");
-const urlInput = document.getElementById("social-url");
-const socialError = document.getElementById("social-error");
-const socialList = document.getElementById("social-list");
-
-let socials = loadData("socials", []);
-
-// Turn what the user typed into a safe URL, or return null if it's not valid.
-// Only http and https links are allowed (this blocks things like "javascript:").
+// Only http and https links are allowed (blocks things like "javascript:")
 function cleanUrl(input) {
   let value = input.trim();
   if (!value) return null;
-
-  // Allow "github.com/me" by adding https:// when no scheme is given
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) {
-    value = "https://" + value;
-  }
-
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = "https://" + value;
   try {
     const url = new URL(value);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    if (!url.hostname.includes(".")) return null; // needs a real domain
+    if (!url.hostname.includes(".")) return null;
     return url.href;
   } catch (err) {
     return null;
   }
 }
 
-function renderSocials() {
-  socialList.innerHTML = "";
-
-  if (socials.length === 0) {
-    socialList.appendChild(el("li", "empty", "No links yet. Add your first one above."));
-    return;
-  }
-
-  socials.forEach((item) => {
-    const li = el("li", "social-chip");
-
-    const link = el("a", "", item.platform);
-    link.href = item.url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-
-    const removeBtn = el("button", "", "✕");
-    removeBtn.type = "button";
-    removeBtn.setAttribute("aria-label", `Remove ${item.platform} link`);
-    removeBtn.addEventListener("click", () => {
-      socials = socials.filter((s) => s.id !== item.id);
-      saveData("socials", socials);
-      renderSocials();
-    });
-
-    li.append(link, removeBtn);
-    socialList.appendChild(li);
-  });
+function fail(message) {
+  errorEl.textContent = message;
 }
 
-socialForm.addEventListener("submit", (event) => {
-  event.preventDefault();
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const type = form.elements.type.value;
+  const now = Date.now();
+  const added = [];
 
-  const url = cleanUrl(urlInput.value);
-  if (!url) {
-    socialError.textContent = "That doesn't look like a valid link. Try something like github.com/yourname.";
-    return;
+  try {
+    if (type === "photo") {
+      const files = [...$("photo-input").files].filter((f) => f.type.startsWith("image/"));
+      if (files.length === 0) return fail("Choose at least one image.");
+      for (const file of files) {
+        added.push({ id: now + Math.random(), type: "photo", src: await resizeImage(file), created: now });
+      }
+    } else if (type === "note") {
+      const text = $("note-text").value.trim();
+      if (!text) return fail("Write something first.");
+      added.push({ id: now, type: "note", title: $("note-title").value.trim(), text, created: now });
+    } else {
+      const url = cleanUrl($("link-url").value);
+      if (!url) return fail("That doesn't look like a valid link. Try github.com/yourname.");
+      added.push({ id: now, type: "link", platform: $("link-platform").value, url, created: now });
+    }
+  } catch (err) {
+    return fail(err.message);
   }
 
-  socialError.textContent = "";
-  socials.push({
-    id: Date.now(),
-    platform: platformSelect.value,
-    url: url,
-  });
+  pins.unshift(...added);
+  if (!save("pins", pins)) {
+    pins.splice(0, added.length); // undo, storage is full
+    return fail("Storage is full. Delete a few photos and try again.");
+  }
 
-  saveData("socials", socials);
-  renderSocials();
-  socialForm.reset();
-  urlInput.focus();
+  dialog.close();
+  renderFeed();
 });
 
-renderSocials();
+renderFeed();
