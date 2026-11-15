@@ -93,11 +93,6 @@ async function loadBlocks() {
 function renderNotes() {
   notesList.innerHTML = "";
 
-  if (notes.length === 0) {
-    notesList.appendChild(el("li", "empty", "No notes yet. Write your first one above."));
-    return;
-  }
-
   notes.forEach((note) => {
     const li = el("li", "note");
 
@@ -159,11 +154,6 @@ function cleanUrl(input) {
 
 function renderLinks() {
   linkGrid.innerHTML = "";
-
-  if (links.length === 0) {
-    linkGrid.appendChild(el("li", "empty", "No links yet. Add your first one above."));
-    return;
-  }
 
   links.forEach((item) => {
     const li = el("li", "link-item");
@@ -251,11 +241,6 @@ function resizeImage(file, maxSize = 900) {
 
 function renderPhotos() {
   photoGrid.innerHTML = "";
-
-  if (photos.length === 0) {
-    photoGrid.appendChild(el("li", "empty", "Nothing here yet. Add your first photos above."));
-    return;
-  }
 
   photos.forEach((photo, index) => {
     const li = el("li", "shot");
