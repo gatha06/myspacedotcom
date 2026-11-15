@@ -2,7 +2,8 @@ import os
 import re
 import secrets
 import sqlite3
-from flask import Flask, render_template, request, jsonify, g, session
+from functools import wraps
+from flask import Flask, render_template, request, jsonify, g, session, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -54,18 +55,6 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
         """
-        CREATE TABLE IF NOT EXISTS blocks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type TEXT NOT NULL,
-            title TEXT NOT NULL DEFAULT '',
-            content TEXT NOT NULL DEFAULT '',
-            url TEXT NOT NULL DEFAULT '',
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    conn.execute(
-        """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
@@ -74,6 +63,30 @@ def init_db():
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS blocks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL DEFAULT '',
+            url TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            user_id INTEGER
+        )
+        """
+    )
+
+    # Older databases don't have the user_id column yet, so add it
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(blocks)")]
+    if "user_id" not in columns:
+        conn.execute("ALTER TABLE blocks ADD COLUMN user_id INTEGER")
+
+    # Blocks made before accounts existed go to the first account
+    conn.execute(
+        "UPDATE blocks SET user_id = (SELECT MIN(id) FROM users) WHERE user_id IS NULL"
+    )
+
     conn.commit()
     conn.close()
 
@@ -88,9 +101,23 @@ def current_user():
     ).fetchone()
 
 
+def login_required(view):
+    """Block an API route unless someone is logged in."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        user = current_user()
+        if user is None:
+            return jsonify(error="Please log in"), 401
+        g.user = user
+        return view(*args, **kwargs)
+    return wrapped
+
+
 # ---------- Pages ----------
 @app.route("/")
 def home():
+    if current_user() is None:
+        return redirect(url_for("login_page"))
     return render_template("index.html")
 
 
@@ -161,14 +188,18 @@ def me():
     return jsonify(user={"username": user["username"]})
 
 
-# ---------- Blocks API (not protected yet, that's Step 2) ----------
+# ---------- Blocks API (only for logged-in users, and only their own) ----------
 @app.route("/api/blocks", methods=["GET"])
+@login_required
 def list_blocks():
-    rows = get_db().execute("SELECT * FROM blocks ORDER BY id DESC").fetchall()
+    rows = get_db().execute(
+        "SELECT * FROM blocks WHERE user_id = ? ORDER BY id DESC", (g.user["id"],)
+    ).fetchall()
     return jsonify([dict(row) for row in rows])
 
 
 @app.route("/api/blocks", methods=["POST"])
+@login_required
 def add_block():
     data = request.get_json(silent=True) or {}
 
@@ -190,8 +221,8 @@ def add_block():
 
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO blocks (type, title, content, url) VALUES (?, ?, ?, ?)",
-        (block_type, title, content, url),
+        "INSERT INTO blocks (type, title, content, url, user_id) VALUES (?, ?, ?, ?, ?)",
+        (block_type, title, content, url, g.user["id"]),
     )
     db.commit()
 
@@ -200,9 +231,13 @@ def add_block():
 
 
 @app.route("/api/blocks/<int:block_id>", methods=["DELETE"])
+@login_required
 def delete_block(block_id):
     db = get_db()
-    cursor = db.execute("DELETE FROM blocks WHERE id = ?", (block_id,))
+    # The user_id check means you can only delete your own blocks
+    cursor = db.execute(
+        "DELETE FROM blocks WHERE id = ? AND user_id = ?", (block_id, g.user["id"])
+    )
     db.commit()
     if cursor.rowcount == 0:
         return jsonify(error="Not found"), 404
