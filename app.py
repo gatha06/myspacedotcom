@@ -4,15 +4,21 @@ import re
 import secrets
 import sqlite3
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, g, session, redirect, url_for
+from flask import (
+    Flask, render_template, request, jsonify, g, session,
+    redirect, url_for, abort, send_from_directory,
+)
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 DB_PATH = os.path.join(app.root_path, "myspace.db")
-ALLOWED_TYPES = {"note", "link", "spotify"}
+UPLOAD_DIR = os.path.join(app.root_path, "uploads")
+ALLOWED_TYPES = {"note", "link", "spotify"}  # photos are created only by /api/photos
 USERNAME_RE = re.compile(r"^[a-z0-9_]{3,20}$")
 AVATAR_PREFIX = "data:image/jpeg;base64,"
 MAX_AVATAR_BYTES = 150_000
+MAX_PHOTO_BYTES = 3_000_000
+MAX_PHOTOS_PER_USER = 200
 
 
 # ---------- Secret key (signs the login cookie) ----------
@@ -34,7 +40,7 @@ app.config.update(
     SECRET_KEY=load_secret_key(),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    MAX_CONTENT_LENGTH=1_000_000,  # refuse requests bigger than 1 MB
+    MAX_CONTENT_LENGTH=4_000_000,  # refuse requests bigger than 4 MB
 )
 
 
@@ -104,6 +110,7 @@ def init_db():
 
     conn.commit()
     conn.close()
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def current_user():
@@ -313,13 +320,78 @@ def add_block():
 def delete_block(block_id):
     db = get_db()
     # The user_id check means you can only delete your own blocks
+    row = db.execute(
+        "SELECT type, content FROM blocks WHERE id = ? AND user_id = ?",
+        (block_id, g.user["id"]),
+    ).fetchone()
+    if row is None:
+        return jsonify(error="Not found"), 404
+
+    db.execute("DELETE FROM blocks WHERE id = ?", (block_id,))
+    db.commit()
+
+    # For photos, also remove the file from the uploads folder
+    if row["type"] == "photo":
+        try:
+            os.remove(os.path.join(UPLOAD_DIR, os.path.basename(row["content"])))
+        except OSError:
+            pass
+    return jsonify(ok=True)
+
+
+# ---------- Photos ----------
+@app.route("/api/photos", methods=["POST"])
+@login_required
+def upload_photo():
+    file = request.files.get("photo")
+    if file is None:
+        return jsonify(error="No photo was sent"), 400
+
+    raw = file.read(MAX_PHOTO_BYTES + 1)
+    if len(raw) > MAX_PHOTO_BYTES:
+        return jsonify(error="That photo is too big"), 413
+    if raw[:3] != b"\xff\xd8\xff":  # every JPEG file starts with these bytes
+        return jsonify(error="Only JPEG photos are accepted"), 400
+
+    db = get_db()
+    count = db.execute(
+        "SELECT COUNT(*) FROM blocks WHERE user_id = ? AND type = 'photo'",
+        (g.user["id"],),
+    ).fetchone()[0]
+    if count >= MAX_PHOTOS_PER_USER:
+        return jsonify(error="You've reached the photo limit"), 400
+
+    # The file name is random and made by the server, never taken from the upload
+    filename = secrets.token_hex(16) + ".jpg"
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
+        f.write(raw)
+
     cursor = db.execute(
-        "DELETE FROM blocks WHERE id = ? AND user_id = ?", (block_id, g.user["id"])
+        "INSERT INTO blocks (type, content, user_id) VALUES ('photo', ?, ?)",
+        (filename, g.user["id"]),
     )
     db.commit()
-    if cursor.rowcount == 0:
-        return jsonify(error="Not found"), 404
-    return jsonify(ok=True)
+    row = db.execute("SELECT * FROM blocks WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    return jsonify(dict(row)), 201
+
+
+@app.route("/photos/<int:block_id>")
+@login_required
+def photo_file(block_id):
+    row = get_db().execute(
+        "SELECT content FROM blocks WHERE id = ? AND type = 'photo' AND user_id = ?",
+        (block_id, g.user["id"]),
+    ).fetchone()
+    if row is None:
+        abort(404)
+
+    response = send_from_directory(
+        UPLOAD_DIR, os.path.basename(row["content"]), mimetype="image/jpeg"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "private, max-age=3600"
+    return response
 
 
 init_db()
