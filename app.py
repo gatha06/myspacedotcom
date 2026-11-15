@@ -7,7 +7,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 DB_PATH = os.path.join(app.root_path, "myspace.db")
-ALLOWED_TYPES = {"note", "link"}
+ALLOWED_TYPES = {"note", "link", "spotify"}
 USERNAME_RE = re.compile(r"^[a-z0-9_]{3,20}$")
 
 
