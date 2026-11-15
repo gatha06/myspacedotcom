@@ -98,4 +98,112 @@ function renderNotes() {
 
     if (note.title) li.appendChild(el("h3", "", note.title));
     li.appendChild(el("p", "", note.content));
-    li.appendChild(el("time", "",
+    li.appendChild(el("time", "", dbDate(note.created_at)));
+
+    const rm = el("button", "rm", "Remove");
+    rm.type = "button";
+    rm.addEventListener("click", async () => {
+      if (!confirm("Delete this note?")) return;
+      if (await removeBlock(note.id, notesError)) {
+        notes = notes.filter((n) => n.id !== note.id);
+        renderNotes();
+      }
+    });
+
+    li.appendChild(rm);
+    notesList.appendChild(li);
+  });
+}
+
+$("note-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const content = $("note-text").value.trim();
+  if (!content) return;
+
+  try {
+    const block = await api("/api/blocks", {
+      method: "POST",
+      body: JSON.stringify({ type: "note", title: $("note-title").value.trim(), content }),
+    });
+    notesError.textContent = "";
+    notes.unshift(block);
+    renderNotes();
+    event.target.reset();
+    $("note-title").focus();
+  } catch (err) {
+    notesError.textContent = err.message;
+  }
+});
+
+// ----- Links -----
+// Only http and https links are allowed (this blocks things like "javascript:")
+function cleanUrl(input) {
+  let value = input.trim();
+  if (!value) return null;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = "https://" + value;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    if (!url.hostname.includes(".")) return null;
+    return url.href;
+  } catch (err) {
+    return null;
+  }
+}
+
+function renderLinks() {
+  linkGrid.innerHTML = "";
+
+  links.forEach((item) => {
+    const li = el("li", "link-item");
+
+    let host = item.url;
+    try { host = new URL(item.url).hostname.replace(/^www\./, ""); } catch (err) { /* keep full url */ }
+
+    const a = el("a", "link");
+    a.href = item.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.append(el("strong", "", item.title || "Link"), el("small", "", host));
+
+    const rm = el("button", "rm", "Remove");
+    rm.type = "button";
+    rm.addEventListener("click", async () => {
+      if (!confirm("Remove this link?")) return;
+      if (await removeBlock(item.id, linksError)) {
+        links = links.filter((l) => l.id !== item.id);
+        renderLinks();
+      }
+    });
+
+    li.append(a, rm);
+    linkGrid.appendChild(li);
+  });
+}
+
+$("link-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const url = cleanUrl($("link-url").value);
+  if (!url) {
+    linksError.textContent = "That doesn't look like a valid link. Try something like github.com/yourname.";
+    return;
+  }
+
+  try {
+    const block = await api("/api/blocks", {
+      method: "POST",
+      body: JSON.stringify({ type: "link", title: $("link-platform").value, url }),
+    });
+    linksError.textContent = "";
+    links.unshift(block);
+    renderLinks();
+    event.target.reset();
+    $("link-url").focus();
+  } catch (err) {
+    linksError.textContent = err.message;
+  }
+});
+
+loadBlocks();
