@@ -1,3 +1,4 @@
+import base64
 import os
 import re
 import secrets
@@ -10,6 +11,8 @@ app = Flask(__name__)
 DB_PATH = os.path.join(app.root_path, "myspace.db")
 ALLOWED_TYPES = {"note", "link", "spotify"}
 USERNAME_RE = re.compile(r"^[a-z0-9_]{3,20}$")
+AVATAR_PREFIX = "data:image/jpeg;base64,"
+MAX_AVATAR_BYTES = 150_000
 
 
 # ---------- Secret key (signs the login cookie) ----------
@@ -31,6 +34,7 @@ app.config.update(
     SECRET_KEY=load_secret_key(),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    MAX_CONTENT_LENGTH=1_000_000,  # refuse requests bigger than 1 MB
 )
 
 
@@ -73,6 +77,17 @@ def init_db():
             url TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             user_id INTEGER
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS profiles (
+            user_id INTEGER PRIMARY KEY,
+            display_name TEXT NOT NULL DEFAULT '',
+            tagline TEXT NOT NULL DEFAULT '',
+            bio TEXT NOT NULL DEFAULT '',
+            avatar TEXT NOT NULL DEFAULT ''
         )
         """
     )
@@ -186,6 +201,69 @@ def me():
     if user is None:
         return jsonify(user=None)
     return jsonify(user={"username": user["username"]})
+
+
+# ---------- Profile API (About me) ----------
+def valid_avatar(value):
+    """Accept only a small JPEG sent as a data URL."""
+    if not value.startswith(AVATAR_PREFIX):
+        return False
+    try:
+        raw = base64.b64decode(value[len(AVATAR_PREFIX):], validate=True)
+    except ValueError:
+        return False
+    return len(raw) <= MAX_AVATAR_BYTES and raw[:3] == b"\xff\xd8\xff"
+
+
+def profile_for(user):
+    row = get_db().execute(
+        "SELECT display_name, tagline, bio, avatar FROM profiles WHERE user_id = ?",
+        (user["id"],),
+    ).fetchone()
+    data = {"display_name": "", "tagline": "", "bio": "", "avatar": ""}
+    if row:
+        data.update(dict(row))
+    data["username"] = user["username"]
+    return data
+
+
+@app.route("/api/profile", methods=["GET"])
+@login_required
+def get_profile():
+    return jsonify(profile_for(g.user))
+
+
+@app.route("/api/profile", methods=["PUT"])
+@login_required
+def save_profile():
+    data = request.get_json(silent=True) or {}
+    current = profile_for(g.user)
+
+    display_name = str(data.get("display_name", current["display_name"])).strip()[:60]
+    tagline = str(data.get("tagline", current["tagline"])).strip()[:100]
+    bio = str(data.get("bio", current["bio"])).strip()[:1000]
+
+    avatar = current["avatar"]
+    if "avatar" in data:  # missing = keep the old photo, "" = remove it
+        avatar = str(data["avatar"])
+        if avatar and not valid_avatar(avatar):
+            return jsonify(error="That photo couldn't be used. Try a different image."), 400
+
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO profiles (user_id, display_name, tagline, bio, avatar)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            display_name = excluded.display_name,
+            tagline = excluded.tagline,
+            bio = excluded.bio,
+            avatar = excluded.avatar
+        """,
+        (g.user["id"], display_name, tagline, bio, avatar),
+    )
+    db.commit()
+    return jsonify(profile_for(g.user))
 
 
 # ---------- Blocks API (only for logged-in users, and only their own) ----------
