@@ -21,62 +21,90 @@
   </header>
 
   <main id="top">
+
     <section class="hero">
-      <h1>My little <em>space</em><span class="dot">.</span></h1>
-      <p class="lede">notes I keep, photos I collect, and corners of the internet I love.</p>
-      <a href="#notes" class="btn">Wander in <span aria-hidden="true">→</span></a>
+      <div>
+        <h1>Welcome to <em>my space</em></h1>
+        <p class="lede">notes I keep, photos I collect, and corners of the internet I love.</p>
+        <a href="#notes" class="btn">Start exploring <span aria-hidden="true">↓</span></a>
+      </div>
+
+      <nav class="toc" aria-label="Contents">
+        <p class="toc-label">On this page</p>
+        <ol>
+          <li><a href="#notes"><span class="n">01</span><span class="t">Notes</span><span class="go" aria-hidden="true">→</span></a></li>
+          <li><a href="#photos"><span class="n">02</span><span class="t">Photo dump</span><span class="go" aria-hidden="true">→</span></a></li>
+          <li><a href="#links"><span class="n">03</span><span class="t">Elsewhere</span><span class="go" aria-hidden="true">→</span></a></li>
+        </ol>
+      </nav>
     </section>
 
-    <div class="wave" aria-hidden="true"></div>
+    <div class="rule" aria-hidden="true"><span></span></div>
 
-    <section id="notes" class="block">
-      <h2>the notes, <em>lately</em></h2>
-      <p class="sub">write whatever you want.</p>
-      <form id="note-form" class="form">
-        <input type="text" id="note-title" placeholder="Title (optional)" maxlength="60" aria-label="Note title">
-        <textarea id="note-text" placeholder="Write a note..." rows="3" required aria-label="Note text"></textarea>
-        <button type="submit" class="btn">Add note</button>
-      </form>
-      <p id="notes-error" class="error" role="alert"></p>
-      <ul id="notes-list" class="notes"></ul>
+    <section id="notes" class="block split">
+      <div class="side">
+        <span class="num">01</span>
+        <h2>My <em>notes</em></h2>
+        <p class="sub">write whatever you want.</p>
+      </div>
+      <div class="content">
+        <form id="note-form" class="form">
+          <input type="text" id="note-title" placeholder="Title (optional)" maxlength="60" aria-label="Note title">
+          <textarea id="note-text" placeholder="Write a note..." rows="3" required aria-label="Note text"></textarea>
+          <button type="submit" class="btn">Add note</button>
+        </form>
+        <p id="notes-error" class="error" role="alert"></p>
+        <ul id="notes-list" class="notes"></ul>
+      </div>
     </section>
 
-    <div class="wave" aria-hidden="true"></div>
+    <div class="rule" aria-hidden="true"><span></span></div>
 
-    <section id="photos" class="block">
-      <h2>the photo <em>dump</em></h2>
-      <p class="sub">a pile of moments I didn't want to forget.</p>
-      <label class="btn file-btn">
-        Add photos
-        <input type="file" id="photo-input" accept="image/*" multiple>
-      </label>
-      <p id="photos-error" class="error" role="alert"></p>
-      <ul id="photo-grid" class="dump"></ul>
+    <section id="photos" class="block split">
+      <div class="side">
+        <span class="num">02</span>
+        <h2>Photo <em>dump</em></h2>
+        <p class="sub">a pile of moments I didn't want to forget.</p>
+      </div>
+      <div class="content">
+        <label class="btn file-btn">
+          Add photos
+          <input type="file" id="photo-input" accept="image/*" multiple>
+        </label>
+        <p id="photos-error" class="error" role="alert"></p>
+        <ul id="photo-grid" class="dump"></ul>
+      </div>
     </section>
 
-    <div class="wave" aria-hidden="true"></div>
+    <div class="rule" aria-hidden="true"><span></span></div>
 
-    <section id="links" class="block">
-      <h2>find me <em>elsewhere</em></h2>
-      <p class="sub">playlists, boards, watchlists and profiles.</p>
-      <form id="link-form" class="form row">
-        <select id="link-platform" aria-label="Platform">
-          <option>GitHub</option>
-          <option>LinkedIn</option>
-          <option>Instagram</option>
-          <option>X</option>
-          <option>YouTube</option>
-          <option>Spotify</option>
-          <option>Pinterest</option>
-          <option>Letterboxd</option>
-          <option>Website</option>
-        </select>
-        <input type="text" id="link-url" placeholder="Paste a link" required aria-label="Link">
-        <button type="submit" class="btn">Add link</button>
-      </form>
-      <p id="links-error" class="error" role="alert"></p>
-      <ul id="link-grid" class="links"></ul>
+    <section id="links" class="block split">
+      <div class="side">
+        <span class="num">03</span>
+        <h2>Find me <em>elsewhere</em></h2>
+        <p class="sub">playlists, boards, watchlists and profiles.</p>
+      </div>
+      <div class="content">
+        <form id="link-form" class="form row">
+          <select id="link-platform" aria-label="Platform">
+            <option>GitHub</option>
+            <option>LinkedIn</option>
+            <option>Instagram</option>
+            <option>X</option>
+            <option>YouTube</option>
+            <option>Spotify</option>
+            <option>Pinterest</option>
+            <option>Letterboxd</option>
+            <option>Website</option>
+          </select>
+          <input type="text" id="link-url" placeholder="Paste a link" required aria-label="Link">
+          <button type="submit" class="btn">Add link</button>
+        </form>
+        <p id="links-error" class="error" role="alert"></p>
+        <ul id="link-grid" class="links"></ul>
+      </div>
     </section>
+
   </main>
 
   <footer>
