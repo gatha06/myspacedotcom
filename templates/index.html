@@ -16,6 +16,7 @@
     <nav aria-label="Sections">
       <a href="#notes">Notes</a>
       <a href="#photos">Photo dump</a>
+      <a href="#music">On repeat</a>
       <a href="#links">Elsewhere</a>
     </nav>
   </header>
@@ -34,7 +35,8 @@
         <ol>
           <li><a href="#notes"><span class="n">01</span><span class="t">Notes</span><span class="go" aria-hidden="true">→</span></a></li>
           <li><a href="#photos"><span class="n">02</span><span class="t">Photo dump</span><span class="go" aria-hidden="true">→</span></a></li>
-          <li><a href="#links"><span class="n">03</span><span class="t">Elsewhere</span><span class="go" aria-hidden="true">→</span></a></li>
+          <li><a href="#music"><span class="n">03</span><span class="t">On repeat</span><span class="go" aria-hidden="true">→</span></a></li>
+          <li><a href="#links"><span class="n">04</span><span class="t">Elsewhere</span><span class="go" aria-hidden="true">→</span></a></li>
         </ol>
       </nav>
     </section>
@@ -78,11 +80,30 @@
 
     <div class="rule" aria-hidden="true"><span></span></div>
 
-    <section id="links" class="block split">
+    <section id="music" class="block split">
       <div class="side">
         <span class="num">03</span>
+        <h2>On <em>repeat</em></h2>
+        <p class="sub">what I can't stop listening to.</p>
+      </div>
+      <div class="content">
+        <form id="tune-form" class="form row">
+          <input type="text" id="tune-url" placeholder="Paste a Spotify link" required aria-label="Spotify link">
+          <button type="submit" class="btn">Add player</button>
+        </form>
+        <p class="hint">In Spotify, open a playlist, album or song, tap Share, then Copy link.</p>
+        <p id="tunes-error" class="error" role="alert"></p>
+        <ul id="tune-grid" class="tunes"></ul>
+      </div>
+    </section>
+
+    <div class="rule" aria-hidden="true"><span></span></div>
+
+    <section id="links" class="block split">
+      <div class="side">
+        <span class="num">04</span>
         <h2>Find me <em>elsewhere</em></h2>
-        <p class="sub">playlists, boards, watchlists and profiles.</p>
+        <p class="sub">boards, watchlists and profiles.</p>
       </div>
       <div class="content">
         <form id="link-form" class="form row">
@@ -92,7 +113,6 @@
             <option>Instagram</option>
             <option>X</option>
             <option>YouTube</option>
-            <option>Spotify</option>
             <option>Pinterest</option>
             <option>Letterboxd</option>
             <option>Website</option>
@@ -117,5 +137,6 @@
   </dialog>
 
   <script src="/static/script.js"></script>
+  <script src="/static/spotify.js"></script>
 </body>
 </html>
