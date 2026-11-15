@@ -183,9 +183,10 @@ def add_block():
     # Always check on the server too. Never trust the browser.
     if block_type == "note" and not content:
         return jsonify(error="A note needs some text"), 400
-    if block_type == "link" and not url.startswith(("http://", "https://")):
+        if block_type == "link" and not url.startswith(("http://", "https://")):
         return jsonify(error="A link must start with http:// or https://"), 400
-
+    if block_type == "spotify" and not url.startswith("https://open.spotify.com/"):
+        return jsonify(error="That doesn't look like a Spotify link"), 400
     db = get_db()
     cursor = db.execute(
         "INSERT INTO blocks (type, title, content, url) VALUES (?, ?, ?, ?)",
