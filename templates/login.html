@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log in · myspacedotcom</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    input[type="password"] {
+      width: 100%;
+      padding: 14px 16px;
+      font: inherit;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid var(--line);
+      border-radius: 0;
+    }
+    input[type="password"]:focus { border-color: var(--accent); outline: none; }
+    .linklike {
+      padding: 0;
+      font: inherit;
+      color: var(--ink);
+      background: none;
+      border: none;
+      border-bottom: 1px solid var(--accent);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="nav">
+    <a href="/" class="brand">myspacedotcom</a>
+  </header>
+
+  <main>
+    <section class="block">
+
+      <div id="auth-wrap">
+        <h2 id="auth-title">Log in</h2>
+        <p class="sub" id="auth-sub">welcome back.</p>
+        <form id="auth-form" class="form">
+          <input type="text" id="username" placeholder="Username" autocomplete="username" maxlength="20" required aria-label="Username">
+          <input type="password" id="password" placeholder="Password" autocomplete="current-password" maxlength="128" required aria-label="Password">
+          <button type="submit" class="btn" id="auth-submit">Log in</button>
+        </form>
+        <p id="auth-error" class="error" role="alert"></p>
+        <p class="sub"><span id="switch-text">New here?</span> <button type="button" id="switch-btn" class="linklike">Create an account</button></p>
+      </div>
+
+      <div id="already" hidden>
+        <h2>You're in.</h2>
+        <p class="sub">logged in as <strong id="who"></strong>.</p>
+        <p style="margin-top: 24px;">
+          <a href="/" class="btn">Go to my space</a>
+          <button type="button" id="logout-btn" class="btn">Log out</button>
+        </p>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="/static/login.js"></script>
+</body>
+</html>
