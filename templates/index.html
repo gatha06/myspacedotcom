@@ -14,6 +14,7 @@
   <header class="nav">
     <a href="#top" class="brand">myspacedotcom</a>
     <nav aria-label="Sections">
+      <a href="#about">About</a>
       <a href="#notes">Notes</a>
       <a href="#photos">Photo dump</a>
       <a href="#music">On repeat</a>
@@ -28,25 +29,69 @@
       <div>
         <h1>Welcome to <em>my space</em></h1>
         <p class="lede">notes I keep, photos I collect, and corners of the internet I love.</p>
-        <a href="#notes" class="btn">Start exploring <span aria-hidden="true">↓</span></a>
+        <a href="#about" class="btn">Start exploring <span aria-hidden="true">↓</span></a>
       </div>
 
       <nav class="toc" aria-label="Contents">
         <p class="toc-label">On this page</p>
         <ol>
-          <li><a href="#notes"><span class="n">01</span><span class="t">Notes</span><span class="go" aria-hidden="true">→</span></a></li>
-          <li><a href="#photos"><span class="n">02</span><span class="t">Photo dump</span><span class="go" aria-hidden="true">→</span></a></li>
-          <li><a href="#music"><span class="n">03</span><span class="t">On repeat</span><span class="go" aria-hidden="true">→</span></a></li>
-          <li><a href="#links"><span class="n">04</span><span class="t">Elsewhere</span><span class="go" aria-hidden="true">→</span></a></li>
+          <li><a href="#about"><span class="n">01</span><span class="t">About me</span><span class="go" aria-hidden="true">→</span></a></li>
+          <li><a href="#notes"><span class="n">02</span><span class="t">Notes</span><span class="go" aria-hidden="true">→</span></a></li>
+          <li><a href="#photos"><span class="n">03</span><span class="t">Photo dump</span><span class="go" aria-hidden="true">→</span></a></li>
+          <li><a href="#music"><span class="n">04</span><span class="t">On repeat</span><span class="go" aria-hidden="true">→</span></a></li>
+          <li><a href="#links"><span class="n">05</span><span class="t">Elsewhere</span><span class="go" aria-hidden="true">→</span></a></li>
         </ol>
       </nav>
     </section>
 
     <div class="rule" aria-hidden="true"><span></span></div>
 
-    <section id="notes" class="block split">
+    <section id="about" class="block split">
       <div class="side">
         <span class="num">01</span>
+        <h2>About <em>me</em></h2>
+        <p class="sub">a little about who's here.</p>
+      </div>
+      <div class="content">
+        <div id="about-view" class="about">
+          <div id="about-portrait" class="portrait" aria-hidden="true"></div>
+          <div class="about-text">
+            <h3 id="about-name"></h3>
+            <p id="about-tagline" class="tagline"></p>
+            <p id="about-bio" class="bio"></p>
+            <button type="button" id="about-edit" class="btn">Edit profile</button>
+          </div>
+        </div>
+
+        <form id="about-form" class="form" hidden>
+          <label class="field"><span>Name</span>
+            <input type="text" id="about-name-input" maxlength="60">
+          </label>
+          <label class="field"><span>Tagline</span>
+            <input type="text" id="about-tagline-input" maxlength="100" placeholder="A few words about you">
+          </label>
+          <label class="field"><span>Bio</span>
+            <textarea id="about-bio-input" rows="5" maxlength="1000" placeholder="Tell people who you are"></textarea>
+          </label>
+          <label class="field"><span>Profile photo</span>
+            <input type="file" id="about-photo" accept="image/*">
+          </label>
+          <p id="about-photo-note" class="field-note"></p>
+          <div class="form-actions">
+            <button type="submit" class="btn">Save</button>
+            <button type="button" id="about-remove-photo" class="btn ghost">Remove photo</button>
+            <button type="button" id="about-cancel" class="btn ghost">Cancel</button>
+          </div>
+        </form>
+        <p id="about-error" class="error" role="alert"></p>
+      </div>
+    </section>
+
+    <div class="rule" aria-hidden="true"><span></span></div>
+
+    <section id="notes" class="block split">
+      <div class="side">
+        <span class="num">02</span>
         <h2>My <em>notes</em></h2>
         <p class="sub">write whatever you want.</p>
       </div>
@@ -65,7 +110,7 @@
 
     <section id="photos" class="block split">
       <div class="side">
-        <span class="num">02</span>
+        <span class="num">03</span>
         <h2>Photo <em>dump</em></h2>
         <p class="sub">a pile of moments I didn't want to forget.</p>
       </div>
@@ -83,7 +128,7 @@
 
     <section id="music" class="block split">
       <div class="side">
-        <span class="num">03</span>
+        <span class="num">04</span>
         <h2>On <em>repeat</em></h2>
         <p class="sub">what I can't stop listening to.</p>
       </div>
@@ -102,7 +147,7 @@
 
     <section id="links" class="block split">
       <div class="side">
-        <span class="num">04</span>
+        <span class="num">05</span>
         <h2>Find me <em>elsewhere</em></h2>
         <p class="sub">boards, watchlists and profiles.</p>
       </div>
@@ -139,5 +184,6 @@
 
   <script src="/static/script.js"></script>
   <script src="/static/spotify.js"></script>
+  <script src="/static/about.js"></script>
 </body>
 </html>
