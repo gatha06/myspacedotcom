@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ username }} · myspacedotcom</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-username="{{ username }}">
+
+  <header class="nav">
+    <a href="/" class="brand">myspacedotcom</a>
+    <nav aria-label="Site">
+      <a href="/">My space</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="intro">
+      <div class="about">
+        <div id="p-portrait" class="portrait" aria-hidden="true"></div>
+        <div class="about-text">
+          <h1 id="p-name"></h1>
+          <p id="p-tagline" class="tagline" hidden></p>
+          <p id="p-bio" class="bio" hidden></p>
+          <p id="preview-note" class="hint" hidden>This page is private right now. Only you can see it.</p>
+          <p id="p-error" class="error" role="alert"></p>
+        </div>
+      </div>
+    </section>
+
+    <div id="p-notes" hidden>
+      <div class="rule" aria-hidden="true"><span></span></div>
+      <section class="block split">
+        <div class="side"><h2>My <em>notes</em></h2></div>
+        <div class="content"><ul id="p-notes-list" class="notes"></ul></div>
+      </section>
+    </div>
+
+    <div id="p-photos" hidden>
+      <div class="rule" aria-hidden="true"><span></span></div>
+      <section class="block split">
+        <div class="side"><h2>Photo <em>dump</em></h2></div>
+        <div class="content"><ul id="p-photos-grid" class="dump"></ul></div>
+      </section>
+    </div>
+
+    <div id="p-music" hidden>
+      <div class="rule" aria-hidden="true"><span></span></div>
+      <section class="block split">
+        <div class="side"><h2>On <em>repeat</em></h2></div>
+        <div class="content"><ul id="p-music-grid" class="tunes"></ul></div>
+      </section>
+    </div>
+
+    <div id="p-links" hidden>
+      <div class="rule" aria-hidden="true"><span></span></div>
+      <section class="block split">
+        <div class="side"><h2>Find me <em>elsewhere</em></h2></div>
+        <div class="content"><ul id="p-links-grid" class="links"></ul></div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <p>made with <a href="/login">myspacedotcom</a></p>
+  </footer>
+
+  <dialog id="lightbox" class="lightbox" aria-label="Photo viewer">
+    <img id="lightbox-img" alt="Enlarged photo">
+    <button type="button" id="lightbox-close" class="lightbox-close" aria-label="Close photo">✕</button>
+  </dialog>
+
+  <script src="/static/public.js"></script>
+</body>
+</html>
