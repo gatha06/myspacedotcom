@@ -93,15 +93,20 @@ def init_db():
             display_name TEXT NOT NULL DEFAULT '',
             tagline TEXT NOT NULL DEFAULT '',
             bio TEXT NOT NULL DEFAULT '',
-            avatar TEXT NOT NULL DEFAULT ''
+            avatar TEXT NOT NULL DEFAULT '',
+            is_public INTEGER NOT NULL DEFAULT 0
         )
         """
     )
 
-    # Older databases don't have the user_id column yet, so add it
-    columns = [row[1] for row in conn.execute("PRAGMA table_info(blocks)")]
-    if "user_id" not in columns:
+    # Older databases are missing some columns, so add them
+    block_cols = [row[1] for row in conn.execute("PRAGMA table_info(blocks)")]
+    if "user_id" not in block_cols:
         conn.execute("ALTER TABLE blocks ADD COLUMN user_id INTEGER")
+
+    profile_cols = [row[1] for row in conn.execute("PRAGMA table_info(profiles)")]
+    if "is_public" not in profile_cols:
+        conn.execute("ALTER TABLE profiles ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0")
 
     # Blocks made before accounts existed go to the first account
     conn.execute(
@@ -210,7 +215,7 @@ def me():
     return jsonify(user={"username": user["username"]})
 
 
-# ---------- Profile API (About me) ----------
+# ---------- Profile API (About me, and the public/private switch) ----------
 def valid_avatar(value):
     """Accept only a small JPEG sent as a data URL."""
     if not value.startswith(AVATAR_PREFIX):
@@ -224,12 +229,13 @@ def valid_avatar(value):
 
 def profile_for(user):
     row = get_db().execute(
-        "SELECT display_name, tagline, bio, avatar FROM profiles WHERE user_id = ?",
+        "SELECT display_name, tagline, bio, avatar, is_public FROM profiles WHERE user_id = ?",
         (user["id"],),
     ).fetchone()
-    data = {"display_name": "", "tagline": "", "bio": "", "avatar": ""}
+    data = {"display_name": "", "tagline": "", "bio": "", "avatar": "", "is_public": 0}
     if row:
         data.update(dict(row))
+    data["is_public"] = bool(data["is_public"])
     data["username"] = user["username"]
     return data
 
@@ -256,18 +262,25 @@ def save_profile():
         if avatar and not valid_avatar(avatar):
             return jsonify(error="That photo couldn't be used. Try a different image."), 400
 
+    is_public = current["is_public"]
+    if "is_public" in data:  # missing = keep the current setting
+        if not isinstance(data["is_public"], bool):
+            return jsonify(error="Invalid setting"), 400
+        is_public = data["is_public"]
+
     db = get_db()
     db.execute(
         """
-        INSERT INTO profiles (user_id, display_name, tagline, bio, avatar)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO profiles (user_id, display_name, tagline, bio, avatar, is_public)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
             display_name = excluded.display_name,
             tagline = excluded.tagline,
             bio = excluded.bio,
-            avatar = excluded.avatar
+            avatar = excluded.avatar,
+            is_public = excluded.is_public
         """,
-        (g.user["id"], display_name, tagline, bio, avatar),
+        (g.user["id"], display_name, tagline, bio, avatar, int(is_public)),
     )
     db.commit()
     return jsonify(profile_for(g.user))
@@ -340,6 +353,15 @@ def delete_block(block_id):
 
 
 # ---------- Photos ----------
+def serve_photo(filename):
+    response = send_from_directory(
+        UPLOAD_DIR, os.path.basename(filename), mimetype="image/jpeg"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "private, max-age=300"
+    return response
+
+
 @app.route("/api/photos", methods=["POST"])
 @login_required
 def upload_photo():
@@ -385,13 +407,70 @@ def photo_file(block_id):
     ).fetchone()
     if row is None:
         abort(404)
+    return serve_photo(row["content"])
 
-    response = send_from_directory(
-        UPLOAD_DIR, os.path.basename(row["content"]), mimetype="image/jpeg"
-    )
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Cache-Control"] = "private, max-age=3600"
-    return response
+
+# ---------- Public pages ----------
+def public_space(username):
+    """Return (user, profile) if this space may be viewed, otherwise None.
+    A space can be viewed if it's public, or if its owner is the one looking."""
+    user = get_db().execute(
+        "SELECT id, username FROM users WHERE username = ?", (username.lower(),)
+    ).fetchone()
+    if user is None:
+        return None
+
+    profile = profile_for(user)
+    viewer = current_user()
+    is_owner = viewer is not None and viewer["id"] == user["id"]
+    if not (profile["is_public"] or is_owner):
+        return None  # same answer for "private" and "doesn't exist"
+    return user, profile
+
+
+@app.route("/u/<username>")
+def public_page(username):
+    space = public_space(username)
+    if space is None:
+        abort(404)
+    return render_template("public.html", username=space[0]["username"])
+
+
+@app.route("/api/public/<username>")
+def public_data(username):
+    space = public_space(username)
+    if space is None:
+        return jsonify(error="Not found"), 404
+    user, profile = space
+
+    rows = get_db().execute(
+        "SELECT id, type, title, content, url, created_at FROM blocks "
+        "WHERE user_id = ? ORDER BY id DESC",
+        (user["id"],),
+    ).fetchall()
+
+    blocks = []
+    for row in rows:
+        item = dict(row)
+        if item["type"] == "photo":
+            item["content"] = ""  # never reveal the stored file name
+        blocks.append(item)
+
+    return jsonify(profile=profile, blocks=blocks)
+
+
+@app.route("/u/<username>/photo/<int:block_id>")
+def public_photo(username, block_id):
+    space = public_space(username)
+    if space is None:
+        abort(404)
+    row = get_db().execute(
+        "SELECT content FROM blocks WHERE id = ? AND type = 'photo' AND user_id = ?",
+        (block_id, space[0]["id"]),
+    ).fetchone()
+    if row is None:
+        abort(404)
+    return serve_photo(row["content"])
 
 
 init_db()
