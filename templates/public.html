@@ -63,6 +63,23 @@
         <div class="content"><ul id="p-links-grid" class="links"></ul></div>
       </section>
     </div>
+
+    <div class="rule" aria-hidden="true"><span></span></div>
+    <section id="guestbook" class="block split">
+      <div class="side">
+        <h2>The <em>guestbook</em></h2>
+        <p class="sub">leave a note while you're here.</p>
+      </div>
+      <div class="content">
+        <form id="gb-form" class="form" hidden>
+          <textarea id="gb-text" rows="3" maxlength="300" placeholder="Say hi..." required aria-label="Your message"></textarea>
+          <button type="submit" class="btn">Sign the guestbook</button>
+        </form>
+        <p id="gb-login" class="hint" hidden><a id="gb-login-link" href="/login">Log in</a> to sign the guestbook.</p>
+        <p id="gb-error" class="error" role="alert"></p>
+        <ul id="gb-list" class="notes"></ul>
+      </div>
+    </section>
   </main>
 
   <footer>
@@ -75,5 +92,6 @@
   </dialog>
 
   <script src="/static/public.js"></script>
+  <script src="/static/guestbook.js"></script>
 </body>
 </html>
