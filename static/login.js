@@ -13,6 +13,12 @@ function setMode(next) {
   $("auth-error").textContent = "";
 }
 
+// Where to go after logging in: only a public page like /u/name, otherwise home
+function nextPage() {
+  const next = new URLSearchParams(window.location.search).get("next") || "";
+  return /^\/u\/[a-z0-9_]{3,20}$/.test(next) ? next : "/";
+}
+
 $("switch-btn").addEventListener("click", () => {
   setMode(mode === "login" ? "signup" : "login");
 });
@@ -32,7 +38,7 @@ $("auth-form").addEventListener("submit", async (event) => {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Something went wrong");
-    window.location.href = "/";
+    window.location.href = nextPage();
   } catch (err) {
     $("auth-error").textContent = err.message;
   }
