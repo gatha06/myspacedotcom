@@ -19,6 +19,8 @@ AVATAR_PREFIX = "data:image/jpeg;base64,"
 MAX_AVATAR_BYTES = 150_000
 MAX_PHOTO_BYTES = 3_000_000
 MAX_PHOTOS_PER_USER = 200
+MAX_GUESTBOOK_LEN = 300
+GUESTBOOK_PER_HOUR = 5
 
 
 # ---------- Secret key (signs the login cookie) ----------
@@ -95,6 +97,17 @@ def init_db():
             bio TEXT NOT NULL DEFAULT '',
             avatar TEXT NOT NULL DEFAULT '',
             is_public INTEGER NOT NULL DEFAULT 0
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS guestbook (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            space_id INTEGER NOT NULL,
+            author_id INTEGER NOT NULL,
+            message TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
@@ -471,6 +484,93 @@ def public_photo(username, block_id):
     if row is None:
         abort(404)
     return serve_photo(row["content"])
+
+
+# ---------- Guestbook ----------
+@app.route("/api/guestbook/<username>", methods=["GET"])
+def guestbook_list(username):
+    space = public_space(username)
+    if space is None:
+        return jsonify(error="Not found"), 404
+    owner = space[0]
+
+    viewer = current_user()
+    viewer_id = viewer["id"] if viewer else None
+
+    rows = get_db().execute(
+        """
+        SELECT gb.id, gb.message, gb.created_at, gb.author_id,
+               COALESCE(NULLIF(p.display_name, ''), u.username) AS author
+        FROM guestbook gb
+        JOIN users u ON u.id = gb.author_id
+        LEFT JOIN profiles p ON p.user_id = gb.author_id
+        WHERE gb.space_id = ?
+        ORDER BY gb.id DESC
+        LIMIT 200
+        """,
+        (owner["id"],),
+    ).fetchall()
+
+    entries = [
+        {
+            "id": row["id"],
+            "author": row["author"],
+            "message": row["message"],
+            "created_at": row["created_at"],
+            # the author and the page owner may remove a message
+            "can_delete": viewer_id is not None and viewer_id in (row["author_id"], owner["id"]),
+        }
+        for row in rows
+    ]
+    return jsonify(entries=entries, viewer=viewer["username"] if viewer else None)
+
+
+@app.route("/api/guestbook/<username>", methods=["POST"])
+@login_required
+def guestbook_add(username):
+    space = public_space(username)
+    if space is None:
+        return jsonify(error="Not found"), 404
+    owner = space[0]
+
+    data = request.get_json(silent=True) or {}
+    message = str(data.get("message", "")).strip()
+    if not message:
+        return jsonify(error="Write a message first"), 400
+    if len(message) > MAX_GUESTBOOK_LEN:
+        return jsonify(error=f"Keep it under {MAX_GUESTBOOK_LEN} characters"), 400
+
+    db = get_db()
+    recent = db.execute(
+        "SELECT COUNT(*) FROM guestbook "
+        "WHERE author_id = ? AND space_id = ? AND created_at > datetime('now', '-1 hour')",
+        (g.user["id"], owner["id"]),
+    ).fetchone()[0]
+    if recent >= GUESTBOOK_PER_HOUR:
+        return jsonify(error="That's a lot of messages. Try again a bit later."), 429
+
+    db.execute(
+        "INSERT INTO guestbook (space_id, author_id, message) VALUES (?, ?, ?)",
+        (owner["id"], g.user["id"], message),
+    )
+    db.commit()
+    return jsonify(ok=True), 201
+
+
+@app.route("/api/guestbook/entry/<int:entry_id>", methods=["DELETE"])
+@login_required
+def guestbook_delete(entry_id):
+    db = get_db()
+    row = db.execute(
+        "SELECT author_id, space_id FROM guestbook WHERE id = ?", (entry_id,)
+    ).fetchone()
+    # Only the author or the page owner may delete; everyone else gets "not found"
+    if row is None or g.user["id"] not in (row["author_id"], row["space_id"]):
+        return jsonify(error="Not found"), 404
+
+    db.execute("DELETE FROM guestbook WHERE id = ?", (entry_id,))
+    db.commit()
+    return jsonify(ok=True)
 
 
 init_db()
